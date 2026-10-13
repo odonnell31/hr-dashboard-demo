@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open Roles Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<style>
+  /* Layout: one centered column — header, upload strip, then either the roles table or a role's detail view. */
+  :root {
+    --bg: #f5f7f8;
+    --surface: #ffffff;
+    --ink: #17232b;
+    --muted: #5b6b75;
+    --line: #dde3e7;
+    --accent: #0f6e78;
+    --accent-soft: #e3f1f2;
+    --row-hover: #f0f6f7;
+    --danger: #a3332b;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-data: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1619; --surface: #162126; --ink: #e4ecef; --muted: #93a4ad;
+      --line: #263439; --accent: #4fbac4; --accent-soft: #173238; --row-hover: #1b2a30;
+      --danger: #f08a80; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1619; --surface: #162126; --ink: #e4ecef; --muted: #93a4ad;
+    --line: #263439; --accent: #4fbac4; --accent-soft: #173238; --row-hover: #1b2a30;
+    --danger: #f08a80; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 var(--font-ui);
+  }
+  [hidden] { display: none !important; }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-inline: 24px;
+    padding-block: 32px 64px;
+    display: grid;
+    gap: 24px;
+  }
+  @media (max-width: 600px) { .page { padding-inline: 16px; padding-block: 20px 40px; } }
+
+  .eyebrow {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 { margin: 2px 0 0; font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+  h2 { margin: 0; font-size: 18px; }
+  .subtitle { margin: 6px 0 0; color: var(--muted); }
+
+  /* Upload area */
+  .dropzone {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--surface);
+    border: 2px dashed var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .dropzone:hover, .dropzone.dragging { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .dropzone strong { font-size: 16px; }
+  .dropzone .hint { color: var(--muted); font-size: 13px; }
+  .dropzone.compact {
+    grid-auto-flow: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    text-align: left;
+    border-style: solid;
+    border-width: 1px;
+  }
+  .dropzone.compact .full-only { display: none; }
+  .dropzone:not(.compact) .compact-only { display: none; }
+  .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .button:hover { background: var(--accent-soft); }
+  .button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .message { margin: 0; font-size: 14px; color: var(--danger); }
+  .privacy { margin: 0; font-size: 13px; color: var(--muted); }
+
+  /* Roles table */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-head .meta { color: var(--muted); font-size: 13px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 12px 16px; text-align: left; white-space: nowrap; }
+  th:first-child, td:first-child { padding-left: 20px; }
+  th {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: normal;
+    vertical-align: bottom;
+    border-bottom: 1px solid var(--line);
+  }
+  td { border-bottom: 1px solid var(--line); }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.num { font-family: var(--font-data); font-size: 14px; }
+  td.title { font-weight: 600; }
+  td.chevron { width: 1%; padding-left: 0; padding-right: 20px; color: var(--muted); }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr:hover td.chevron { color: var(--accent); }
+  tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+
+  /* Detail view */
+  .detail-head { display: grid; gap: 16px; justify-items: start; }
+  .placeholder {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header>
+    <p class="eyebrow">Recruiting</p>
+    <h1 id="page-title">Open Roles Dashboard</h1>
+    <p class="subtitle" id="page-subtitle">Upload the recruiting workbook to see every open role.</p>
+  </header>
+
+  <!-- Upload area: click to browse or drop a file. The file is read in this tab only. -->
+  <label class="dropzone" id="dropzone" for="file-input">
+    <input class="file-input" id="file-input" type="file" accept=".xlsx">
+    <span class="full-only"><strong>Drop an .xlsx file here</strong></span>
+    <span class="full-only hint">or click to choose one. Each sheet should be one open role.</span>
+    <span class="compact-only" id="file-summary"></span>
+    <span class="compact-only button">Replace file</span>
+  </label>
+  <p class="message" id="message" hidden></p>
+  <p class="privacy">Your file is read inside this browser tab. Nothing is uploaded to a server.</p>
+
+  <!-- Dashboard view -->
+  <section id="dashboard-view" class="panel">
+    <div class="panel-head">
+      <h2>Open roles</h2>
+      <span class="meta">Sorted by days open. Click a role for details.</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Team</th>
+            <th>Job Title</th>
+            <th class="num">Days Open</th>
+            <th class="num">Candidates Interviewed</th>
+            <th class="num">Total Applications</th>
+            <th class="num">Offers Presented</th>
+            <th aria-hidden="true"></th>
+          </tr>
+        </thead>
+        <tbody id="roles-body">
+          <tr class="empty-row"><td colspan="7" class="empty">No file loaded yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Detail view (placeholder for now) -->
+  <section id="detail-view" hidden>
+    <div class="detail-head">
+      <button class="button" id="back-button" type="button">← Back to dashboard</button>
+      <div>
+        <p class="eyebrow" id="detail-team"></p>
+        <h1 id="detail-title"></h1>
+      </div>
+    </div>
+    <div class="placeholder" style="margin-top: 24px;">Role details will appear here.</div>
+  </section>
+
+</main>
+
+<script>
+// ---------- Helpers ----------
+
+// Turn any cell value into a trimmed string ("" for empty cells).
+function clean(value) {
+  return value == null ? "" : String(value).trim();
+}
+
+// Dates can arrive as JS Date objects (SheetJS with cellDates), Excel serial numbers, or text.
+function toDate(value) {
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(Math.round((value - 25569) * 86400000));
+  const text = clean(value);
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return new Date(+iso[1], iso[2] - 1, +iso[3]);
+  const parsed = new Date(text);
+  return text && !isNaN(parsed) ? parsed : null;
+}
+
+// Whole days between two dates (rounded, so time zones and DST don't matter).
+function daysBetween(start, end) {
+  if (!start || !end) return null;
+  return Math.round((end - start) / 86400000);
+}
+
+// ---------- Parsing ----------
+
+// Turn one sheet (an array of rows) into a plain role object.
+function parseRoleSheet(rows) {
+  // Rows 1-6 are "Label:" in column A and its value in column B.
+  const lookup = (label) => {
+    const row = rows.find(r => clean(r[0]).toLowerCase() === label.toLowerCase());
+    return row ? row[1] : null;
+  };
+
+  // The interview log is every row below the "Interview Date" header that has a candidate.
+  const headerIndex = rows.findIndex(r => clean(r[0]).toLowerCase() === "interview date");
+  const logRows = headerIndex === -1 ? [] : rows.slice(headerIndex + 1);
+
+  const interviews = logRows
+    .filter(r => clean(r[2]) !== "")
+    .map(r => ({
+      date: toDate(r[0]),
+      round: clean(r[1]).toLowerCase(),
+      candidate: clean(r[2]),
+      offerPresented: clean(r[3]),
+    }));
+
+  return {
+    team: clean(lookup("Team:")),
+    jobTitle: clean(lookup("Open Role:")),
+    datePosted: toDate(lookup("Date Posted:")),
+    today: toDate(lookup("Today's Date:")),
+    totalApplications: Number(lookup("LinkedIn Applications:")) || 0,
+    lastWeekApplications: Number(lookup("Last Weeks Applications:")) || 0,
+    interviews,
+  };
+}
+
+// ---------- Metrics ----------
+
+function summarizeRole(role) {
+  const uniqueCandidates = new Set(role.interviews.map(i => i.candidate.toLowerCase()));
+  return {
+    daysOpen: daysBetween(role.datePosted, role.today),
+    candidatesInterviewed: uniqueCandidates.size,
+    totalApplications: role.totalApplications,
+    offersPresented: role.interviews.filter(i => i.offerPresented.toLowerCase() === "yes").length,
+  };
+}
+
+// ---------- State and rendering ----------
+
+const state = { roles: [] };   // each item: { ...role, metrics }
+
+const els = {
+  dropzone: document.getElementById("dropzone"),
+  fileInput: document.getElementById("file-input"),
+  fileSummary: document.getElementById("file-summary"),
+  message: document.getElementById("message"),
+  subtitle: document.getElementById("page-subtitle"),
+  rolesBody: document.getElementById("roles-body"),
+  dashboardView: document.getElementById("dashboard-view"),
+  detailView: document.getElementById("detail-view"),
+  detailTeam: document.getElementById("detail-team"),
+  detailTitle: document.getElementById("detail-title"),
+  backButton: document.getElementById("back-button"),
+};
+
+function formatNumber(n) {
+  return n == null ? "—" : n.toLocaleString("en-US");
+}
+
+function renderDashboard() {
+  els.rolesBody.replaceChildren();
+  state.roles.forEach((role, index) => {
+    const tr = document.createElement("tr");
+    tr.tabIndex = 0;
+    tr.setAttribute("aria-label", `View details for ${role.jobTitle}`);
+    const cells = [
+      [role.team, ""],
+      [role.jobTitle, "title"],
+      [formatNumber(role.metrics.daysOpen), "num"],
+      [formatNumber(role.metrics.candidatesInterviewed), "num"],
+      [formatNumber(role.metrics.totalApplications), "num"],
+      [formatNumber(role.metrics.offersPresented), "num"],
+      ["›", "chevron"],
+    ];
+    for (const [text, className] of cells) {
+      const td = document.createElement("td");
+      td.textContent = text;          // textContent keeps names from the file from being read as HTML
+      if (className) td.className = className;
+      tr.appendChild(td);
+    }
+    tr.addEventListener("click", () => showDetail(index));
+    tr.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showDetail(index); }
+    });
+    els.rolesBody.appendChild(tr);
+  });
+}
+
+function showDashboard() {
+  els.detailView.hidden = true;
+  els.dashboardView.hidden = false;
+  window.scrollTo(0, 0);
+}
+
+function showDetail(index) {
+  const role = state.roles[index];
+  els.detailTeam.textContent = role.team;
+  els.detailTitle.textContent = role.jobTitle;
+  els.dashboardView.hidden = true;
+  els.detailView.hidden = false;
+  window.scrollTo(0, 0);
+  els.backButton.focus();
+}
+
+function showMessage(text) {
+  els.message.textContent = text;
+  els.message.hidden = !text;
+}
+
+// ---------- File loading ----------
+
+function loadWorkbook(file) {
+  showMessage("");
+  if (!file) return;
+  if (!/\.xlsx$/i.test(file.name)) {
+    showMessage(`"${file.name}" is not an .xlsx file. Choose an Excel workbook ending in .xlsx.`);
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let workbook;
+    try {
+      workbook = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true });
+    } catch (err) {
+      showMessage(`Could not read "${file.name}". Check that it is a valid Excel workbook.`);
+      return;
+    }
+
+    const roles = [];
+    const skipped = [];
+    for (const sheetName of workbook.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: null, blankrows: true });
+      const role = parseRoleSheet(rows);
+      if (role.jobTitle) roles.push({ ...role, metrics: summarizeRole(role) });
+      else skipped.push(sheetName);
+    }
+
+    if (roles.length === 0) {
+      showMessage(`No roles found in "${file.name}". Each sheet needs an "Open Role:" label in column A.`);
+      return;
+    }
+    if (skipped.length) {
+      showMessage(`Skipped ${skipped.length} sheet(s) without an "Open Role:" label: ${skipped.join(", ")}.`);
+    }
+
+    roles.sort((a, b) => (b.metrics.daysOpen ?? -1) - (a.metrics.daysOpen ?? -1) || a.jobTitle.localeCompare(b.jobTitle));
+    state.roles = roles;
+
+    const asOf = roles[0].today;
+    els.subtitle.textContent = asOf
+      ? `${roles.length} open roles as of ${asOf.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+      : `${roles.length} open roles.`;
+    els.fileSummary.textContent = `${file.name} · ${roles.length} roles`;
+    els.dropzone.classList.add("compact");
+
+    renderDashboard();
+    showDashboard();
+  };
+  reader.onerror = () => showMessage(`Could not open "${file.name}". Try choosing it again.`);
+  reader.readAsArrayBuffer(file);
+}
+
+els.fileInput.addEventListener("change", () => {
+  loadWorkbook(els.fileInput.files[0]);
+  els.fileInput.value = "";   // lets you re-select the same file
+});
+
+["dragenter", "dragover"].forEach(type =>
+  els.dropzone.addEventListener(type, (e) => { e.preventDefault(); els.dropzone.classList.add("dragging"); }));
+["dragleave", "drop"].forEach(type =>
+  els.dropzone.addEventListener(type, (e) => { e.preventDefault(); els.dropzone.classList.remove("dragging"); }));
+els.dropzone.addEventListener("drop", (e) => loadWorkbook(e.dataTransfer.files[0]));
+
+els.backButton.addEventListener("click", showDashboard);
+
+if (typeof XLSX === "undefined") {
+  showMessage("The spreadsheet reader (SheetJS) did not load. Check your internet connection and reload the page.");
+}
+</script>
+</body>
+</html>
