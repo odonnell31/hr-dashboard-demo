@@ -18,6 +18,9 @@
     --accent-soft: #e3f1f2;
     --row-hover: #f0f6f7;
     --danger: #a3332b;
+    --success: #1d7a46;
+    --accent-strong: #0b5961;
+    --on-accent: #ffffff;
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-data: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     color-scheme: light;
@@ -26,13 +29,13 @@
     :root:not([data-theme="light"]) {
       --bg: #0f1619; --surface: #162126; --ink: #e4ecef; --muted: #93a4ad;
       --line: #263439; --accent: #4fbac4; --accent-soft: #173238; --row-hover: #1b2a30;
-      --danger: #f08a80; color-scheme: dark;
+      --danger: #f08a80; --success: #6fd39a; --accent-strong: #7fd0d7; --on-accent: #0f1619; color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #0f1619; --surface: #162126; --ink: #e4ecef; --muted: #93a4ad;
     --line: #263439; --accent: #4fbac4; --accent-soft: #173238; --row-hover: #1b2a30;
-    --danger: #f08a80; color-scheme: dark;
+    --danger: #f08a80; --success: #6fd39a; --accent-strong: #7fd0d7; --on-accent: #0f1619; color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
@@ -161,15 +164,47 @@
   .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
 
   /* Detail view */
-  .detail-head { display: grid; gap: 16px; justify-items: start; }
-  .placeholder {
-    padding: 48px 24px;
-    text-align: center;
-    color: var(--muted);
+  .detail { display: grid; gap: 20px; }
+  .detail-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .metric {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    padding: 16px 18px;
     background: var(--surface);
-    border: 1px dashed var(--line);
+    border: 1px solid var(--line);
     border-radius: 10px;
   }
+  .metric-label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .metric-value { font-size: 30px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .metric-value.title-value { font-size: 20px; text-wrap: balance; }
+  .metric-value.salary-value { font-size: 20px; }
+
+  .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 900px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+  .chart-panel { padding: 8px 8px 12px; }
+  .chart { height: 340px; }
+  .chart-note { margin: 0; padding-inline: 12px; font-size: 13px; color: var(--muted); }
+
+  .notes { display: grid; gap: 12px; padding: 18px 20px; }
+  .notes textarea {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    resize: vertical;
+  }
+  .notes textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .notes-actions { display: flex; align-items: center; gap: 12px; }
+  .note-status { font-size: 14px; font-weight: 600; color: var(--success); }
+  .button.primary { color: var(--on-accent); background: var(--accent); }
+  .button.primary:hover { background: var(--accent-strong); }
 </style>
 </head>
 <body>
@@ -218,16 +253,39 @@
     </div>
   </section>
 
-  <!-- Detail view (placeholder for now) -->
-  <section id="detail-view" hidden>
+  <!-- Detail view for one role -->
+  <section id="detail-view" class="detail" hidden>
     <div class="detail-head">
       <button class="button" id="back-button" type="button">← Back to dashboard</button>
-      <div>
-        <p class="eyebrow" id="detail-team"></p>
-        <h1 id="detail-title"></h1>
+      <p class="eyebrow" id="detail-team"></p>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><span class="metric-label">Job Title</span><span class="metric-value title-value" id="metric-title"></span></div>
+      <div class="metric"><span class="metric-label">Days Open</span><span class="metric-value" id="metric-days"></span></div>
+      <div class="metric"><span class="metric-label">Offers Presented</span><span class="metric-value" id="metric-offers"></span></div>
+      <div class="metric"><span class="metric-label">Salary Range</span><span class="metric-value salary-value" id="metric-salary"></span></div>
+    </div>
+
+    <div class="charts">
+      <div class="panel chart-panel">
+        <div class="chart" id="funnel-chart"></div>
+        <p class="chart-note">Unique candidates who reached each round.</p>
+      </div>
+      <div class="panel chart-panel">
+        <div class="chart" id="weekly-chart"></div>
+        <p class="chart-note" id="weekly-note"></p>
       </div>
     </div>
-    <div class="placeholder" style="margin-top: 24px;">Role details will appear here.</div>
+
+    <div class="panel notes">
+      <h2><label for="note-input">Recruiter Notes</label></h2>
+      <textarea id="note-input" rows="5" placeholder="Add notes about this role, candidates, or next steps."></textarea>
+      <div class="notes-actions">
+        <button class="button primary" id="save-note" type="button">Save Note</button>
+        <span class="note-status" id="note-status" role="status"></span>
+      </div>
+    </div>
   </section>
 
 </main>
@@ -303,9 +361,68 @@ function summarizeRole(role) {
   };
 }
 
+// Salary ranges are not in the workbook, so they live in this lookup.
+const SALARY_RANGES = {
+  "Jr Data Analyst": "$65,000 – $80,000",
+  "Data Engineer": "$115,000 – $140,000",
+  "Marketing Analyst": "$70,000 – $90,000",
+  "BI Developer": "$95,000 – $120,000",
+  "Machine Learning Engineer": "$140,000 – $175,000",
+};
+const DEFAULT_SALARY_RANGE = "$80,000 – $110,000";
+
+const ROUNDS = ["phone screening", "first round", "second round", "final round"];
+
+// Number of unique candidates who reached each round, in ROUNDS order.
+function funnelCounts(role) {
+  return ROUNDS.map(round => {
+    const names = role.interviews.filter(i => i.round === round).map(i => i.candidate.toLowerCase());
+    return new Set(names).size;
+  });
+}
+
+// A small seeded random number generator (FNV-1a hash of the text + mulberry32),
+// so the same job title always produces the same "random" numbers.
+function seededRandom(text) {
+  let seed = 2166136261;
+  for (const ch of text) seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
+  return function () {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Simulated weekly applications: one entry per week from Date Posted to Today's Date.
+// The counts sum to Total Applications and the last week equals Last Weeks Applications.
+function weeklyApplications(role) {
+  const days = daysBetween(role.datePosted, role.today) ?? 0;
+  const weekCount = Math.max(1, Math.ceil(days / 7));
+  const total = role.totalApplications;
+  const weekStart = (i) => new Date(role.datePosted.getTime() + i * 7 * 86400000);
+  if (weekCount === 1) return [{ weekStart: weekStart(0), count: total }];
+
+  // Everything except last week is split across the earlier weeks by random weights.
+  const lastWeek = Math.min(role.lastWeekApplications, total);
+  const remaining = total - lastWeek;
+  const random = seededRandom(role.jobTitle);
+  const weights = Array.from({ length: weekCount - 1 }, () => 0.5 + random());
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+  const counts = weights.map(w => Math.floor(remaining * w / weightSum));
+
+  // Rounding down leaves a few applications over; hand them out one per week.
+  let leftover = remaining - counts.reduce((a, b) => a + b, 0);
+  for (let i = 0; leftover > 0; i++, leftover--) counts[i % counts.length]++;
+
+  counts.push(lastWeek);
+  return counts.map((count, i) => ({ weekStart: weekStart(i), count }));
+}
+
 // ---------- State and rendering ----------
 
-const state = { roles: [] };   // each item: { ...role, metrics }
+const state = { roles: [], selected: null };   // roles: [{ ...role, metrics }], selected: index
+const notes = {};   // job title -> recruiter note (in memory only; cleared on reload)
 
 const els = {
   dropzone: document.getElementById("dropzone"),
@@ -317,8 +434,17 @@ const els = {
   dashboardView: document.getElementById("dashboard-view"),
   detailView: document.getElementById("detail-view"),
   detailTeam: document.getElementById("detail-team"),
-  detailTitle: document.getElementById("detail-title"),
   backButton: document.getElementById("back-button"),
+  metricTitle: document.getElementById("metric-title"),
+  metricDays: document.getElementById("metric-days"),
+  metricOffers: document.getElementById("metric-offers"),
+  metricSalary: document.getElementById("metric-salary"),
+  funnelChart: document.getElementById("funnel-chart"),
+  weeklyChart: document.getElementById("weekly-chart"),
+  weeklyNote: document.getElementById("weekly-note"),
+  noteInput: document.getElementById("note-input"),
+  saveNote: document.getElementById("save-note"),
+  noteStatus: document.getElementById("note-status"),
 };
 
 function formatNumber(n) {
@@ -355,6 +481,7 @@ function renderDashboard() {
 }
 
 function showDashboard() {
+  state.selected = null;
   els.detailView.hidden = true;
   els.dashboardView.hidden = false;
   window.scrollTo(0, 0);
@@ -362,13 +489,114 @@ function showDashboard() {
 
 function showDetail(index) {
   const role = state.roles[index];
+  state.selected = index;
+
   els.detailTeam.textContent = role.team;
-  els.detailTitle.textContent = role.jobTitle;
+  els.metricTitle.textContent = role.jobTitle;
+  els.metricDays.textContent = formatNumber(role.metrics.daysOpen);
+  els.metricOffers.textContent = formatNumber(role.metrics.offersPresented);
+  els.metricSalary.textContent = SALARY_RANGES[role.jobTitle] ?? DEFAULT_SALARY_RANGE;
+
+  els.noteInput.value = notes[role.jobTitle] ?? "";
+  els.noteStatus.textContent = "";
+
+  // Show the view before drawing, so Plotly can measure the chart containers.
   els.dashboardView.hidden = true;
   els.detailView.hidden = false;
   window.scrollTo(0, 0);
+  renderCharts(role);
   els.backButton.focus();
 }
+
+// ---------- Charts ----------
+
+// Read the page's color tokens so the charts match the light or dark theme.
+function themeColors() {
+  const css = getComputedStyle(document.documentElement);
+  const token = (name) => css.getPropertyValue(name).trim();
+  return { ink: token("--ink"), muted: token("--muted"), line: token("--line"),
+           accent: token("--accent"), accentSoft: token("--accent-soft"), surface: token("--surface"),
+           onAccent: token("--on-accent") };
+}
+
+function baseLayout(title, colors) {
+  return {
+    title: { text: title, x: 0.02, xanchor: "left", font: { size: 16, color: colors.ink } },
+    font: { family: getComputedStyle(document.body).fontFamily, size: 13, color: colors.muted },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    hoverlabel: { bgcolor: colors.surface, bordercolor: colors.line, font: { color: colors.ink } },
+    margin: { l: 56, r: 24, t: 56, b: 48 },
+  };
+}
+
+const PLOT_CONFIG = { displayModeBar: false, responsive: true };
+
+function renderCharts(role) {
+  if (typeof Plotly === "undefined") {
+    els.funnelChart.textContent = els.weeklyChart.textContent = "Charts could not load. Check your internet connection and reload the page.";
+    return;
+  }
+  const colors = themeColors();
+
+  // Interview Funnel
+  const roundLabels = ROUNDS.map(r => r[0].toUpperCase() + r.slice(1));
+  Plotly.react(els.funnelChart, [{
+    type: "funnel",
+    y: roundLabels,
+    x: funnelCounts(role),
+    textinfo: "value+percent initial",
+    textfont: { color: colors.onAccent },
+    marker: { color: colors.accent },
+    connector: { fillcolor: colors.accentSoft, line: { width: 0 } },
+    hovertemplate: "%{y}: %{x} candidates<extra></extra>",
+  }], { ...baseLayout("Interview Funnel", colors), margin: { l: 120, r: 24, t: 56, b: 24 } }, PLOT_CONFIG);
+
+  // Applications by Week
+  const weeks = weeklyApplications(role);
+  const labels = weeks.map(w => w.weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+  const counts = weeks.map(w => w.count);
+  const last = weeks.length - 1;
+  Plotly.react(els.weeklyChart, [{
+    type: "scatter",
+    mode: "lines+markers",
+    x: labels,
+    y: counts,
+    line: { color: colors.accent, width: 2.5 },
+    marker: { color: colors.accent, size: counts.map((_, i) => (i === last ? 10 : 6)) },
+    fill: "tozeroy",
+    fillcolor: colors.accentSoft,
+    hovertemplate: "Week of %{x}: %{y} applications<extra></extra>",
+  }], {
+    ...baseLayout("Applications by Week", colors),
+    xaxis: { title: { text: "Week starting", font: { size: 12 } }, type: "category", gridcolor: colors.line, linecolor: colors.line },
+    yaxis: { title: { text: "Applications", font: { size: 12 } }, rangemode: "tozero", gridcolor: colors.line, zeroline: false },
+    annotations: [{
+      x: labels[last], y: counts[last], text: `Last week: ${counts[last]}`, xanchor: "right",
+      showarrow: true, arrowhead: 0, arrowcolor: colors.muted, ax: -24, ay: -44, font: { color: colors.ink },
+    }],
+  }, PLOT_CONFIG);
+
+  els.weeklyNote.textContent =
+    `Weekly split is simulated for this demo. It adds up to the ${formatNumber(role.totalApplications)} LinkedIn applications in the file, ` +
+    `and the last week matches the file's ${formatNumber(role.lastWeekApplications)}.`;
+}
+
+// Redraw the charts if the viewer switches between light and dark mode.
+function redrawForTheme() {
+  if (state.selected !== null) renderCharts(state.roles[state.selected]);
+}
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawForTheme);
+new MutationObserver(redrawForTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+// ---------- Recruiter notes ----------
+
+els.saveNote.addEventListener("click", () => {
+  const role = state.roles[state.selected];
+  notes[role.jobTitle] = els.noteInput.value;
+  els.noteStatus.textContent = "Note saved";
+});
+els.noteInput.addEventListener("input", () => { els.noteStatus.textContent = ""; });
 
 function showMessage(text) {
   els.message.textContent = text;
