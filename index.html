@@ -22,6 +22,7 @@
     --warn-soft: #fbefe2;
     --on-accent: #ffffff;
     --good: #2e7d4f;
+    --bad: #c0392b;
     --font-ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
     --font-num: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   }
@@ -29,14 +30,14 @@
     :root:not([data-theme="light"]) {
       --bg: #12161c; --surface: #1a2029; --ink: #e4e8ee; --muted: #9aa5b5; --line: #2c3440;
       --accent: #7fb0e0; --accent-soft: #1f2d3d; --row-hover: #212a36; --warn: #f0b27a; --warn-soft: #3a2a1a;
-      --on-accent: #12161c; --good: #7fcf9d;
+      --on-accent: #12161c; --good: #7fcf9d; --bad: #f28b82;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #12161c; --surface: #1a2029; --ink: #e4e8ee; --muted: #9aa5b5; --line: #2c3440;
     --accent: #7fb0e0; --accent-soft: #1f2d3d; --row-hover: #212a36; --warn: #f0b27a; --warn-soft: #3a2a1a;
-      --on-accent: #12161c; --good: #7fcf9d;
+      --on-accent: #12161c; --good: #7fcf9d; --bad: #f28b82;
     color-scheme: dark;
   }
 
@@ -158,6 +159,7 @@
   .chart { height: 340px; }
   .chart-fallback { display: grid; place-items: center; height: 100%; color: var(--muted); }
   .chart-note { margin: 8px 0 0; color: var(--muted); font-size: 0.8rem; }
+  .flag-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--bad); margin-right: 6px; vertical-align: -1px; }
   .notes { display: grid; gap: 10px; }
   .notes h3 { margin: 0; font-size: 1.05rem; font-weight: 650; }
   .notes textarea {
@@ -256,7 +258,10 @@
     </div>
 
     <div class="charts">
-      <div class="panel"><div id="funnel-chart" class="chart"></div></div>
+      <div class="panel">
+        <div id="funnel-chart" class="chart"></div>
+        <p class="chart-note"><span class="flag-swatch" aria-hidden="true"></span>Red marks a round that lost more than 40% of the candidates from the round before it.</p>
+      </div>
       <div class="panel">
         <div id="weekly-chart" class="chart"></div>
         <p class="chart-note">Weekly counts are simulated. They add up to Total Applications, and the last week equals Last Weeks Applications from the workbook.</p>
@@ -398,6 +403,10 @@ function funnelCounts(role) {
     new Set(role.interviews.filter(i => i.round.toLowerCase() === round).map(i => i.candidate)).size);
 }
 
+// Share of candidates lost from the previous round (0 for the first round).
+const DROP_OFF_FLAG = 0.4;   // flag a round in red when it lost more than 40%
+const dropOffs = counts => counts.map((n, i) => (i === 0 || counts[i - 1] === 0 ? 0 : 1 - n / counts[i - 1]));
+
 // Random numbers from a seed: the same text always gives the same sequence (mulberry32).
 function seededRandom(seedText) {
   let a = 2166136261;
@@ -445,7 +454,7 @@ function themeColors() {
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return {
     ink: css("--ink"), muted: css("--muted"), line: css("--line"), font: css("--font-ui"),
-    accent: css("--accent"), soft: css("--accent-soft"), onAccent: css("--on-accent")
+    accent: css("--accent"), soft: css("--accent-soft"), onAccent: css("--on-accent"), bad: css("--bad")
   };
 }
 
@@ -470,15 +479,18 @@ function renderCharts(role) {
 
   const c = themeColors();
   const funnel = chartLayout("Interview Funnel", c);
+  const reached = funnelCounts(role);
+  const drops = dropOffs(reached);
   Plotly.react("funnel-chart", [{
     type: "funnel",
     y: ROUNDS.map(capitalize),
-    x: funnelCounts(role),
+    x: reached,
     textinfo: "value+percent initial",
     textfont: { color: c.onAccent },
-    marker: { color: c.accent },
+    marker: { color: drops.map(d => (d > DROP_OFF_FLAG ? c.bad : c.accent)) },
     connector: { fillcolor: c.soft, line: { width: 0 } },
-    hovertemplate: "%{y}: %{x} candidates<extra></extra>"
+    customdata: drops.map((d, i) => (i === 0 ? "" : `<br>${Math.round(d * 100)}% lost from previous round`)),
+    hovertemplate: "%{y}: %{x} candidates%{customdata}<extra></extra>"
   }], { ...funnel, margin: { ...funnel.margin, l: 120 } }, config);
 
   const { weekEnds, counts } = weeklyApplications(role);
