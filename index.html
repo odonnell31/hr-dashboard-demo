@@ -20,6 +20,8 @@
     --row-hover: #f0f4f9;
     --warn: #8a4b12;
     --warn-soft: #fbefe2;
+    --on-accent: #ffffff;
+    --good: #2e7d4f;
     --font-ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
     --font-num: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   }
@@ -27,12 +29,14 @@
     :root:not([data-theme="light"]) {
       --bg: #12161c; --surface: #1a2029; --ink: #e4e8ee; --muted: #9aa5b5; --line: #2c3440;
       --accent: #7fb0e0; --accent-soft: #1f2d3d; --row-hover: #212a36; --warn: #f0b27a; --warn-soft: #3a2a1a;
+      --on-accent: #12161c; --good: #7fcf9d;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #12161c; --surface: #1a2029; --ink: #e4e8ee; --muted: #9aa5b5; --line: #2c3440;
     --accent: #7fb0e0; --accent-soft: #1f2d3d; --row-hover: #212a36; --warn: #f0b27a; --warn-soft: #3a2a1a;
+      --on-accent: #12161c; --good: #7fcf9d;
     color-scheme: dark;
   }
 
@@ -131,15 +135,53 @@
   .empty { padding: 28px 16px; text-align: center; color: var(--muted); }
 
   /* Detail */
-  .detail-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
-  .detail-head > div { display: grid; gap: 4px; min-width: 0; }
-  .placeholder {
+  .detail-top { display: flex; justify-content: flex-start; }
+  .panel {
     background: var(--surface);
-    border: 1px dashed var(--line);
+    border: 1px solid var(--line);
     border-radius: 10px;
-    padding: 40px 20px;
-    text-align: center;
-    color: var(--muted);
+    padding: 16px;
+    min-width: 0;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+    gap: 16px;
+  }
+  .card { display: grid; gap: 6px; align-content: start; }
+  .card-value { margin: 0; font-size: 1.6rem; font-weight: 650; line-height: 1.2; overflow-wrap: anywhere; }
+  .card-value.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .card-value .unit { margin-left: 0.3em; font-family: var(--font-ui); font-size: 0.95rem; font-weight: 500; color: var(--muted); }
+  .card-title .card-value { font-size: 1.35rem; color: var(--accent); }
+  .card-note { color: var(--muted); font-size: 0.8rem; }
+  .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .chart { height: 340px; }
+  .chart-fallback { display: grid; place-items: center; height: 100%; color: var(--muted); }
+  .chart-note { margin: 8px 0 0; color: var(--muted); font-size: 0.8rem; }
+  .notes { display: grid; gap: 10px; }
+  .notes h3 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+  .notes textarea {
+    font: inherit;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    resize: vertical;
+    min-height: 110px;
+    width: 100%;
+  }
+  .notes textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .notes-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .btn-primary { background: var(--accent); color: var(--on-accent); }
+  .btn-primary:hover { background: var(--accent); filter: brightness(1.1); }
+  .note-status { color: var(--good); font-size: 0.875rem; font-weight: 600; }
+  @media (max-width: 900px) {
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .charts { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .cards { grid-template-columns: minmax(0, 1fr); }
   }
 </style>
 </head>
@@ -186,14 +228,50 @@
 
   <!-- Detail view -->
   <section id="detail-view" class="view" hidden>
-    <div class="detail-head">
-      <div>
-        <span class="eyebrow" id="detail-team"></span>
-        <h2 id="detail-title"></h2>
-      </div>
+    <div class="detail-top">
       <button type="button" class="btn" id="back-btn">&larr; Back to dashboard</button>
     </div>
-    <div class="placeholder">Role details coming soon.</div>
+
+    <div class="cards">
+      <div class="panel card card-title">
+        <span class="eyebrow">Job Title</span>
+        <h2 class="card-value" id="detail-title"></h2>
+        <span class="card-note" id="detail-team"></span>
+      </div>
+      <div class="panel card">
+        <span class="eyebrow">Days Open</span>
+        <p class="card-value num"><span id="detail-days"></span><span class="unit">days</span></p>
+        <span class="card-note" id="detail-posted"></span>
+      </div>
+      <div class="panel card">
+        <span class="eyebrow">Offers Presented</span>
+        <p class="card-value num" id="detail-offers"></p>
+        <span class="card-note" id="detail-finalists"></span>
+      </div>
+      <div class="panel card">
+        <span class="eyebrow">Salary Range</span>
+        <p class="card-value" id="detail-salary"></p>
+        <span class="card-note">Reference range, not from the workbook</span>
+      </div>
+    </div>
+
+    <div class="charts">
+      <div class="panel"><div id="funnel-chart" class="chart"></div></div>
+      <div class="panel">
+        <div id="weekly-chart" class="chart"></div>
+        <p class="chart-note">Weekly counts are simulated. They add up to Total Applications, and the last week equals Last Weeks Applications from the workbook.</p>
+      </div>
+    </div>
+
+    <div class="panel notes">
+      <h3><label for="note-input">Recruiter Notes</label></h3>
+      <textarea id="note-input" rows="4" placeholder="Add notes on this role, such as candidate follow-ups or hiring manager feedback."></textarea>
+      <div class="notes-actions">
+        <button type="button" class="btn btn-primary" id="save-note-btn">Save Note</button>
+        <span class="note-status" id="note-status" role="status" aria-live="polite"></span>
+      </div>
+      <span class="card-note">Notes stay while this page is open and are cleared when you reload it.</span>
+    </div>
   </section>
 
 </main>
@@ -292,12 +370,163 @@ function renderDashboard() {
   $("summary").hidden = false;
 }
 
+// ---------- Detail view ----------
+
+// Salary range isn't in the workbook, so it comes from this lookup.
+const SALARY_RANGES = {
+  "Jr Data Analyst": "$65,000 – $80,000",
+  "Data Engineer": "$115,000 – $140,000",
+  "Marketing Analyst": "$70,000 – $90,000",
+  "BI Developer": "$95,000 – $120,000",
+  "Machine Learning Engineer": "$140,000 – $175,000"
+};
+const DEFAULT_SALARY_RANGE = "$80,000 – $110,000";
+
+const ROUNDS = ["phone screening", "first round", "second round", "final round"];
+
+const notes = {};       // recruiter notes, keyed by job title (in memory only)
+let currentRole = null;
+
+const fmtDate = d => (d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// Number of unique candidates who reached each round.
+function funnelCounts(role) {
+  return ROUNDS.map(round =>
+    new Set(role.interviews.filter(i => i.round.toLowerCase() === round).map(i => i.candidate)).size);
+}
+
+// Random numbers from a seed: the same text always gives the same sequence (mulberry32).
+function seededRandom(seedText) {
+  let a = 2166136261;
+  for (const ch of seedText) a = Math.imul(a ^ ch.charCodeAt(0), 16777619);  // hash the text
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Split a whole number into integer parts proportional to weights, summing exactly to amount.
+function splitExactly(amount, weights) {
+  const sum = weights.reduce((s, w) => s + w, 0);
+  const exact = weights.map(w => (amount * w) / sum);
+  const counts = exact.map(Math.floor);
+  const leftover = amount - counts.reduce((s, c) => s + c, 0);
+  exact.map((x, i) => [x - counts[i], i])
+    .sort((p, q) => q[0] - p[0])
+    .slice(0, leftover)
+    .forEach(([, i]) => counts[i]++);
+  return counts;
+}
+
+// Simulated weekly applications. Weeks end on Today's Date and step back 7 days to Date Posted,
+// so the first week may be partial. Counts sum to Total Applications; the last week equals
+// Last Weeks Applications.
+function weeklyApplications(role) {
+  const total = role.totalApplications;
+  const last = Math.min(role.lastWeekApplications, total);
+  const weeks = Math.max(1, Math.ceil((role.daysOpen || 0) / 7));
+  const weekEnds = Array.from({ length: weeks }, (_, k) => isoDate(addDays(role.today, -7 * (weeks - 1 - k))));
+  if (weeks === 1) return { weekEnds, counts: [total] };
+
+  const rand = seededRandom(role.jobTitle || "");
+  const firstWeekDays = role.daysOpen - 7 * (weeks - 1);
+  const weights = Array.from({ length: weeks - 1 }, (_, i) =>
+    (0.6 + 0.8 * rand()) * Math.exp(-0.1 * i) * (i === 0 ? firstWeekDays / 7 : 1));  // random, gently declining
+  return { weekEnds, counts: [...splitExactly(total - last, weights), last] };
+}
+
+// Read colors from the CSS tokens so the charts match the light or dark theme.
+function themeColors() {
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return {
+    ink: css("--ink"), muted: css("--muted"), line: css("--line"), font: css("--font-ui"),
+    accent: css("--accent"), soft: css("--accent-soft"), onAccent: css("--on-accent")
+  };
+}
+
+function chartLayout(title, c) {
+  return {
+    title: { text: title, x: 0, xanchor: "left", font: { size: 16, color: c.ink } },
+    font: { family: c.font, color: c.muted, size: 12 },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    margin: { t: 48, r: 16, b: 40, l: 48 },
+    showlegend: false
+  };
+}
+
+function renderCharts(role) {
+  if (typeof Plotly === "undefined") {
+    ["funnel-chart", "weekly-chart"].forEach(id =>
+      ($(id).innerHTML = '<div class="chart-fallback">Charts need the Plotly library, which didn\'t load. Check your connection and reload.</div>'));
+    return;
+  }
+  const config = { displayModeBar: false, responsive: true };
+
+  const c = themeColors();
+  const funnel = chartLayout("Interview Funnel", c);
+  Plotly.react("funnel-chart", [{
+    type: "funnel",
+    y: ROUNDS.map(capitalize),
+    x: funnelCounts(role),
+    textinfo: "value+percent initial",
+    textfont: { color: c.onAccent },
+    marker: { color: c.accent },
+    connector: { fillcolor: c.soft, line: { width: 0 } },
+    hovertemplate: "%{y}: %{x} candidates<extra></extra>"
+  }], { ...funnel, margin: { ...funnel.margin, l: 120 } }, config);
+
+  const { weekEnds, counts } = weeklyApplications(role);
+  const weekly = chartLayout("Applications by Week", c);
+  Plotly.react("weekly-chart", [{
+    type: "scatter",
+    mode: "lines+markers",
+    x: weekEnds,
+    y: counts,
+    line: { color: c.accent, width: 2.5 },
+    marker: { color: c.accent, size: counts.map((_, i) => (i === counts.length - 1 ? 10 : 6)) },
+    fill: "tozeroy",
+    fillcolor: c.soft,
+    cliponaxis: false,   // keep the end markers from being cut off at the plot edge
+    hovertemplate: "Week ending %{x|%b %d}: %{y} applications<extra></extra>"
+  }], {
+    ...weekly,
+    xaxis: { type: "date", tickformat: "%b %d", gridcolor: c.line, linecolor: c.line, title: { text: "Week ending" } },
+    yaxis: { rangemode: "tozero", gridcolor: c.line, zeroline: false, title: { text: "Applications" } },
+    margin: { ...weekly.margin, b: 56, l: 60 }
+  }, config);
+}
+
 function showDetail(role) {
-  $("detail-team").textContent = role.team || "";
+  currentRole = role;
+  const finalists = funnelCounts(role)[ROUNDS.length - 1];
   $("detail-title").textContent = role.jobTitle || "Untitled role";
+  $("detail-team").textContent = role.team ? `${role.team} team` : "";
+  $("detail-days").textContent = fmt(role.daysOpen);
+  $("detail-posted").textContent = `Posted ${fmtDate(role.datePosted)} · as of ${fmtDate(role.today)}`;
+  $("detail-offers").textContent = fmt(role.offersPresented);
+  $("detail-finalists").textContent = `From ${finalists} final-round candidate${finalists === 1 ? "" : "s"}`;
+  $("detail-salary").textContent = SALARY_RANGES[role.jobTitle] || DEFAULT_SALARY_RANGE;
+  $("note-input").value = notes[role.jobTitle] || "";
+  $("note-status").textContent = "";
+
   $("dashboard-view").hidden = true;
-  $("detail-view").hidden = false;
+  $("detail-view").hidden = false;   // show first so Plotly can measure the chart size
+  renderCharts(role);
   window.scrollTo(0, 0);
+}
+
+function saveNote() {
+  if (!currentRole) return;
+  notes[currentRole.jobTitle] = $("note-input").value;
+  $("note-status").textContent = "Note saved";
+  clearTimeout(saveNote.timer);
+  saveNote.timer = setTimeout(() => ($("note-status").textContent = ""), 2500);
 }
 
 function showDashboard() {
@@ -370,6 +599,12 @@ $("roles-body").addEventListener("keydown", e => {
   if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); showDetail(roles[row.dataset.index]); }
 });
 $("back-btn").addEventListener("click", showDashboard);
+$("save-note-btn").addEventListener("click", saveNote);
+$("note-input").addEventListener("input", () => ($("note-status").textContent = ""));
+// Redraw charts in the new colors if the light/dark theme changes while a role is open.
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (currentRole && !$("detail-view").hidden) renderCharts(currentRole);
+});
 </script>
 </body>
 </html>
